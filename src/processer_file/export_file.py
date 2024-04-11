@@ -3,7 +3,7 @@ import re
 import pandas as pd
 from src.processer_file import get_path 
 from src.processer_file import read_path 
-from src.processer_data import task_process
+from src.processer_data import igv_process, task_process, error_process
 
 def export_to_csv(week_num=int, data_src=str):
     # prepare
@@ -45,7 +45,7 @@ def __export_init__(week_num=int, data_src=str, project=str, df_dict=dict):
                                 project=project)
 
     # export daily/vessel file
-    weekly_df = __export_single_file__(df_dict=df_dict[project], file_folder_p=file_folder_p)
+    weekly_df = __export_single_file__(data_src=data_src, df_dict=df_dict[project], file_folder_p=file_folder_p)
     weekly_path = __create_weekly_path__(week_num=week_num, 
                                             data_src=data_src,
                                             project=project, 
@@ -54,6 +54,13 @@ def __export_init__(week_num=int, data_src=str, project=str, df_dict=dict):
     try:
         if weekly_df.shape[0] >= 10:
             weekly_df.to_csv(weekly_path, encoding='utf-8-sig')
+            if data_src.upper() == 'ERROR':
+                weekly_path_excel = __create_weekly_path_excel__(week_num=week_num, 
+                                                                data_src=data_src,
+                                                                project=project, 
+                                                                file_folder_p=file_folder_p)
+                weekly_df.to_excel(weekly_path_excel, sheet_name='ErrorHistory')
+                print(f'Weekly error file exported to {weekly_path_excel}')
             print(f'Weekly file exported to: {weekly_path}\n')
         else:
             print(f'Too litte info to extract and form a weekly file.')
@@ -65,14 +72,19 @@ def __export_init__(week_num=int, data_src=str, project=str, df_dict=dict):
     else:
         return
 
-def __export_single_file__(df_dict=dict, file_folder_p=str):
+def __export_single_file__( data_src=str, df_dict=dict, file_folder_p=str):
     weekly_df = []
     for folder_name, df in df_dict.items():
-        weekly_df.append(df)
+        if data_src.upper() == 'ERROR':
+            df = error_process.run(df)
+        elif data_src.upper() == 'IGV':
+            df = igv_process.run(df)
+
         export_path = os.path.join(file_folder_p, f'{folder_name}.csv')
         if not os.path.exists(export_path):
             if df.shape[0]>1:
                 df.to_csv(export_path)
+                weekly_df.append(df)
                 print(f"File exported to: {export_path}")
             else:
                 print(f'File to small {df.shape}, {folder_name} has no info to extract.')

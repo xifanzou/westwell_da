@@ -2,15 +2,17 @@ import pandas as pd
 import os
 import re
 from src.processer_file import get_path
-from src.processer_data import preprocess, task_process
+from src.processer_data import preprocess, task_process, error_process, igv_process
 
 def read(week_num=int, data_src=str) -> dict:
     '''
-    Read all relevant csvs and append them into one list.
+    Read all relevant csvs into dataframes, 
+    Each dataframe will be processed with corresponding data_src (IGV/TAS/ERROR),
+    All dataframes are exported in a strctured dictionary.
 
     Paras:
     week_num (str): Week Number Indicator.
-    data_src (str):Data Source Indicator (IGV/TASK/ERROR)
+    data_src (str):Data Source Indicator (IGV/TASK/ERROR).
 
     Returns:
     A dictionary contains folder_name/vessel_name and processed dfs.
@@ -50,6 +52,10 @@ def __process_by_data_src_(project=str, data_src=str, df=pd.DataFrame, vessel_na
     processed_df = preprocess.run(project=project, data_src=data_src, df=df, vessel_name=vessel_name)
     if data_src.upper() == 'TASK':
         processed_df = task_process.run(processed_df)
+    elif data_src.upper() in 'ERRORHISTORY':
+        processed_df = error_process.run(processed_df)
+    elif data_src.upper() == 'IGV':
+        processed_df = igv_process.run(processed_df)
     return processed_df
 
 

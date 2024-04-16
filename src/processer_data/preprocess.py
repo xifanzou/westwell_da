@@ -101,7 +101,7 @@ def __error_filter__(df=pd.DataFrame):
     df (pd.DataFrame): Input DataFrame. 
 
     Returns:
-    pd.DataFrame: DataFrame containing rows with error levels 5 and 6.
+    pd.DataFrame: DataFrame containing rows with error levels 5 and 6 and filtered on error messages.
     """
     if not isinstance(df, pd.DataFrame):
         raise ValueError("Input must be a pandas DataFrame.")
@@ -109,9 +109,14 @@ def __error_filter__(df=pd.DataFrame):
     if 'level' not in df.columns:
         raise ValueError("Input DataFrame must contain a 'level' column.")
 
-    filtered_df = df[df['level'].isin([5, 6])]
+    df = df[df['level'].isin([5, 6])]
+
+    filtered_df = df[df['message'].apply(lambda x: __error_msg_filter__(x))==True].reset_index(drop=True)
 
     return filtered_df
+
+def __error_msg_filter__(message):
+    return len(re.findall(r'紧停|手柄|IMU|手动', message))==0
 
 def __task_filter__(df=pd.DataFrame):
     """

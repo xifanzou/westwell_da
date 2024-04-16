@@ -34,6 +34,7 @@ def read(week_num=int, data_src=str) -> dict:
                 
                 # IGV dfs with at least 5 mins records (3s/record)
                 if (processed.shape[0] >= 100) | (data_src.upper() != 'IGV'): 
+                    print(f'{folder_name, file_path}')
                     if folder_name not in groupped_df:
                         groupped_df[folder_name] = [processed]
                     else:

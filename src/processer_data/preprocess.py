@@ -14,8 +14,6 @@ def run(project=str, data_src=str, df=pd.DataFrame, vessel_name=str) -> pd.DataF
     Returns:
     df (pd.DataFrame): DataFrame preprocessed and(/or) filtered based on project requirements.
     '''
-    # print(f'\n processer imported and running...\n')
-
     stripped_df = __strip_str__(df=df)
 
     # try:
@@ -44,52 +42,48 @@ def __igv_filter__(project=str, vessel_name=None, df=pd.DataFrame):
     Returns:
     df (pd.DataFrame): DataFrame preprocessed or filtered based on project requirements.
     '''
+    # Datatime
     df['local_time'] = pd.to_datetime(df['local_time'], format='%Y-%m-%d %H:%M:%S')
 
+    # Target_location
     if project in ['WH', 'DL', 'TS', 'YH', 'TPY']:
         df['target_location'] = df['target_location'].apply(lambda x: x if len(x)>1 else None)
-        df = df[df['target_location'].isna()==False].reset_index(drop=True)
+        df = df[df['target_location'].isna()==False]
         if project in ['DL', 'TS', 'YH']:
-            df['vesselVisitID'] = df['local_time'].dt.day
+            df['vesselVisitID'] = df['local_time'].dt.month + df['local_time'].dt.day
         elif project in ['WH', 'TPY']:
             df['vesselVisitID'] = [vessel_name] * df.shape[0]
-    
+
+    # Current task
+    if project.upper() in ['DL', 'TS', 'YH', 'TPY']:
+        status = ['DSCH', 'LOAD', 'YARDMOVE', 'MANUALMOVE']
+        df = df[df['current_task'].isin(status)]
+    elif project.upper() in ['TJ', 'WH']:
+        status = ['DSCH', 'LOAD', 'YARDMOVE']
+        df = df[df['current_task'].isin(status)]    
+
+    # Project specific
     if project in ['CK']:
         df = df[df['task_state_running']=='True']
         _useless_col = ['target_location', 'task_state_lock',
                         'vesselVisitID', 'mission_type', 'missionID',
                         'container1_type', 'container2_type',]
         df = df.drop(_useless_col, axis=1)
-    
     if project in ['ICA']:
         df = __igv_ica_filter__(df=df)
 
-    return df
+    # print(project, df)
+    return df.reset_index(drop=True)
 
 def  __igv_ica_filter__(df=pd.DataFrame):
-    '''
-    Specific filter for ICAVE project.
-
-    Paras:
-    df (pd.DataFrame): Input DataFrame.
-
-    Returns:
-    df (pd.DataFrame): DataFrame preprocessed and filtered on mission_type and target_location.
-    '''
-
+    df['local_time'] = pd.to_datetime(df['local_time'], format='%Y-%m-%d %H:%M:%S')
     df['mission_type_org'] = df['mission_type'].copy()
-    df['vesselVisitID'] = df['local_time'].iloc[0]
-    df = df[
-        (df['mission_type'] == 'VSDS') | (df['mission_type'] == 'VSLD')
-    ]
-    temp = df['target_location'].apply(lambda x: 
-                                    # (len(re.findall('tp', x))>0) | 
-                                    (len(re.findall('parking', x))>0) |
-                                    (len(re.findall('idle', x))> 0) |
-                                    (len(re.findall('charging', x))> 0) |
-                                    (type(x) != str)                                       
-                                    )
-    df = df[temp==False]
+    df['vesselVisitID'] = df['local_time'].dt.month + df['local_time'].dt.day
+    df = df[(df['mission_type_org'].str.contains('VSDS')) | 
+            (df['mission_type_org'].str.contains('VSLD'))]
+    # Filter on target location
+    df = df[(df['target_location'].apply(lambda x: len(x)) >= 25) |
+    df['target_location'].str.contains('ts')]
 
     return df
 

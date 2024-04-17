@@ -34,7 +34,7 @@ def read(week_num=int, data_src=str) -> dict:
                 
                 # IGV dfs with at least 5 mins records (3s/record)
                 if (processed.shape[0] >= 100) | (data_src.upper() != 'IGV'): 
-                    print(f'{folder_name, file_path}')
+                    print(f'{project, folder_name, file_path}')
                     if folder_name not in groupped_df:
                         groupped_df[folder_name] = [processed]
                     else:
@@ -52,11 +52,11 @@ def read(week_num=int, data_src=str) -> dict:
 def __process_by_data_src_(project=str, data_src=str, df=pd.DataFrame, vessel_name=None):
     processed_df = preprocess.run(project=project, data_src=data_src, df=df, vessel_name=vessel_name)
     if data_src.upper() == 'TASK':
-        processed_df = task_process.run(processed_df)
+        processed_df = task_process.run(df=processed_df)
     elif data_src.upper() in 'ERRORHISTORY':
-        processed_df = error_process.run(processed_df)
+        processed_df = error_process.run(df=processed_df)
     elif data_src.upper() == 'IGV':
-        processed_df = igv_process.run(processed_df)
+        processed_df = igv_process.run(projrect=project, df=processed_df)
     return processed_df
 
 
@@ -69,6 +69,11 @@ def __is_chinese__(char=str):
 def __concat_groupped_df__(df_dict=dict) -> dict:
     out_dict = {}
     for k, v in df_dict.items():
-        concatenated_df = pd.concat(v, axis=0, ignore_index=True)
+        for df in v:
+            if not df.index.is_unique:
+                print(f"Duplicate index values found in DataFrame: {k}")
+    
+        v_reset = [df.reset_index(drop=True) for df in v]
+        concatenated_df = pd.concat(v_reset, axis=0, ignore_index=True)
         out_dict[k] = concatenated_df
     return out_dict

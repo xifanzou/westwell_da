@@ -1,24 +1,30 @@
-from sys import displayhook
 import pandas as pd
 import numpy as np
 from pyproj import Proj
 import math
-import json
-import re
-from src.processer_data import igv_process_icave 
-from src.map import get_map_config
+from modules.preprocessing import igv_process_icave 
+from modules.map import get_map_config
 
 def run(project=str, df=pd.DataFrame):
+    '''
+    All functions should be executed in sequence.
+    '''
     if project.upper() == 'ICA':
         df = igv_process_icave.ica_processer(df=df)
         df = get_lon_lat(project=project, df=df)
         df = utm_rotation(df=df, angle=101.4765)
 
+    elif project.upper() == 'CK':
+        df = df
+
     else:
         df = get_location_tag(df=df)
-        df['current_task_tag'] = df.apply(
-            lambda x: lmd_get_current_task_tag(x['current_task'], x['mission_type'], x['location_ref']), 
-            axis=1).ffill()
+        df['current_task_tag'] = df.apply(lambda x: lmd_get_current_task_tag(x['current_task'], x['mission_type'], x['location_ref']),axis=1)
+        df['current_task_tag'] = df['current_task_tag'].ffill()
+        df = get_cycle(df=df)
+        df = get_cycle_tag(df=df)
+        if 'Cycle Tag' in df.columns:
+            df = get_container_info(df=df)
         
 
     return df
@@ -78,30 +84,32 @@ def get_location_tag(df=pd.DataFrame):
     '''
     Extract location_ref and location_tag to prepare for current_task_tag extraction.
 
-    Parameters:    df (pd.Dataframe)
+    Parameters:    
+    df (pd.Dataframe)
 
     Returns:
     df (pd.DataFrame): Dataframe with `location_ref` and `location_tag`
     '''
-    try:
-        if 'target_location' in df.columns:
-            _tmp = df['target_location'].str.split('/', expand=True)
-            df['location_ref'], df['location_tag'] = _tmp[0], _tmp[1]
-            df['location_ref'] = df['location_ref'].fillna('TS')
-            df['location_tag'] = df['location_tag'].fillna('TS')
-    except:
-        pass
-
-    return df
+    # try:
+    if 'target_location' in df.columns:
+        _tmp = df['target_location'].str.split('/', expand=True)
+        df['location_ref'], df['location_tag'] = _tmp[0], _tmp[1]
+        df['location_ref'] = df['location_ref'].fillna('TS')
+        df['location_tag'] = df['location_tag'].fillna('TS')
+    # except:
+    #     pass
+    return df.reset_index(drop=True)
 
 def lmd_get_current_task_tag(current_task=str, mission_type=str, location_ref=str):
-    if current_task != 'DSCH' and current_task != 'LOAD':
-        if ('YARD' in location_ref and mission_type=='DELIVER') or ('QC' in location_ref and mission_type=='RECEIVE'):
+    if (current_task != 'DSCH') & (current_task != 'LOAD'):
+        if ('YARD' in location_ref and 'DELIVER' in mission_type) or ('QC' in location_ref and 'RECEIVE' in mission_type):
             return 'DSCH'
-        elif('QC' in location_ref and mission_type=='DELIVER') or ('YARD' in location_ref and mission_type=='RECEIVE'):
+        elif('QC' in location_ref and 'DELIVER' in mission_type) or ('YARD' in location_ref and 'RECEIVE' in mission_type):
             return 'LOAD'      
-    else: return np.nan
-
+        else:
+            return np.nan
+    else:
+        return current_task
 
 
 def get_cycle(df=pd.DataFrame):
@@ -141,29 +149,28 @@ def get_cycle(df=pd.DataFrame):
     df = pd.concat(data_li, axis=0)
     df['cycle'] = df.index.map(cycle_dict)    
     df['cycle'] = df['cycle'].ffill()
-    df.drop(columns=['mission_type_change'], inplace=True)
+    # df.drop(columns=['mission_type_change'], inplace=True)
     df = df.reset_index(drop=True)
-    try:
-        cycle_tag_suffix = f"-{df['local_time'].iloc[1]}"
-        df['Cycle Tag'] = (df['vehicle_id'].astype(str) + '-' +
-                           df['vesselVisitID'].astype(str) + 'C' +
-                           df['cycle'].astype(str) +
-                           cycle_tag_suffix)
-    except IndexError:
-        print("DataFrame does not have enough rows")
-        pass
 
     return df
 
-
-
+def get_cycle_tag(df=pd.DataFrame):
+    try:
+        cycle_tag_suffix = f"-{df['local_time'].iloc[1]}"
+        df['Cycle Tag'] = (df['vehicle_id'].astype(str) + '-' +
+                            df['vesselVisitID'].astype(str) + 'C' +
+                            df['cycle'].astype(str) +
+                            cycle_tag_suffix)
+    except IndexError:
+        print(f"This file passed inital filter check but doesn't have cycles, recommend data source check. Skip processing.")
+        pass
+    return df
 
 def get_container_info(df=pd.DataFrame):
     
     for cycle, data in df.groupby('Cycle Tag'):
         col = ['container1_type', 'container2_type']
-        data['']
-
+        # print('Good to go.')
     return df
 
 

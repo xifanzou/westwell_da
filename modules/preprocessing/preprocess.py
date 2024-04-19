@@ -1,5 +1,7 @@
 import pandas as pd
+import numpy as np
 import re
+
 
 def run(project=str, data_src=str, df=pd.DataFrame, vessel_name=str) -> pd.DataFrame:
     '''
@@ -23,12 +25,18 @@ def run(project=str, data_src=str, df=pd.DataFrame, vessel_name=str) -> pd.DataF
     elif data_src == 'TASK':
         preprocessed = __task_filter__(df=stripped_df)
     elif data_src == 'IGV':
+        project = project.upper()
+        print(f'Before filter: {stripped_df.shape}')
         preprocessed = __igv_filter__(project=project, vessel_name=vessel_name, df=stripped_df)
+        print(f'After filter {preprocessed.shape}')
 
     # except Exception as e:
     #     print("An error occurred:", e)
         # pass
     # return
+
+    preprocessed = preprocessed.reset_index(drop=True)
+
     return preprocessed
 
 def __igv_filter__(project=str, vessel_name=None, df=pd.DataFrame):
@@ -42,17 +50,23 @@ def __igv_filter__(project=str, vessel_name=None, df=pd.DataFrame):
     Returns:
     df (pd.DataFrame): DataFrame preprocessed or filtered based on project requirements.
     '''
+    project = project.upper()
+
     # Datatime
     df['local_time'] = pd.to_datetime(df['local_time'], format='%Y-%m-%d %H:%M:%S')
-
+    
     # Target_location
-    if project in ['WH', 'DL', 'TS', 'YH', 'TPY']:
-        df['target_location'] = df['target_location'].apply(lambda x: x if len(x)>1 else None)
+    if project.upper() in ['WH', 'DL', 'TS', 'YH', 'TPY']:
+        df['target_location'] = df['target_location'].apply(lambda x: x if len(x)>1 else np.NAN)
         df = df[df['target_location'].isna()==False]
-        if project in ['DL', 'TS', 'YH']:
-            df['vesselVisitID'] = df['local_time'].dt.month + df['local_time'].dt.day
-        elif project in ['WH', 'TPY']:
-            df['vesselVisitID'] = [vessel_name] * df.shape[0]
+    
+    # vesselVisitID
+    if project in ['DL', 'TS', 'YH']:
+        df['vesselVisitID'] = df['local_time'].dt.month + df['local_time'].dt.day
+    elif project in ['WH', 'TPY']:
+        df['vesselVisitID'] = [vessel_name] * df.shape[0]
+    elif project== 'TJ': # not working check why
+        df = df[(df['vesselVisitID'].isna() == False) & (df['vesselVisitID']!='None')]
 
     # Current task
     if project.upper() in ['DL', 'TS', 'YH', 'TPY']:
@@ -61,6 +75,7 @@ def __igv_filter__(project=str, vessel_name=None, df=pd.DataFrame):
     elif project.upper() in ['TJ', 'WH']:
         status = ['DSCH', 'LOAD', 'YARDMOVE']
         df = df[df['current_task'].isin(status)]    
+        
 
     # Project specific
     if project in ['CK']:

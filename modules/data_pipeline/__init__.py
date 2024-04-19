@@ -4,7 +4,8 @@ import os
 from .get_path import get
 from .read_path import read
 from .export_file import export_to_csv
-from src.processer_data import preprocess, task_process
+from modules.preprocessing import preprocess, task_process
+
 import warnings
 warnings.filterwarnings("ignore")
 

@@ -1,5 +1,5 @@
 import pandas as pd
-from src.processer_data import igv_process
+from modules.preprocessing import igv_process
 
 def ica_processer(df=pd.DataFrame) -> pd.DataFrame:
     '''
@@ -19,6 +19,7 @@ def ica_processer(df=pd.DataFrame) -> pd.DataFrame:
     df['location_ref'] = df['target_location'].apply(lambda x: lmd_get_location_ref(x))
     df['mission_type'] = df.apply(lambda x: lmd_get_mission_type(x['current_task_tag'], x['location_ref']), axis=1)
     df = igv_process.get_cycle(df=df)
+    df = igv_process.get_cycle_tag(df=df)
 
     return df
 

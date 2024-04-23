@@ -1,5 +1,5 @@
 import pandas as pd
-from modules.preprocessing import igv_process
+from modules.IGV import igv_process
 
 def ica_processer(df=pd.DataFrame) -> pd.DataFrame:
     '''

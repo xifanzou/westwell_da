@@ -2,19 +2,26 @@ import pandas as pd
 import numpy as np
 from pyproj import Proj
 import math
-from modules.preprocessing import igv_process_icave 
+from modules.IGV import igv_process_icave 
 from modules.map import get_map_config
+from modules.IGV import get_container_type
 
 def run(project=str, df=pd.DataFrame):
     '''
     All functions should be executed in sequence.
     '''
-    if project.upper() == 'ICA':
+    project = project.upper()
+
+    if project == 'ICA':
         df = igv_process_icave.ica_processer(df=df)
         df = get_lon_lat(project=project, df=df)
         df = utm_rotation(df=df, angle=101.4765)
+        df = get_container_type(df=df)
+        df = get_kpis(df=df)
+        df = get_queue_mark_and_estop(df=df)
+        df = get_chassis_mode(df=df)
 
-    elif project.upper() == 'CK':
+    elif project == 'CK':
         df = df
 
     else:
@@ -24,8 +31,11 @@ def run(project=str, df=pd.DataFrame):
         df = get_cycle(df=df)
         df = get_cycle_tag(df=df)
         if 'Cycle Tag' in df.columns:
-            df = get_container_info(df=df)
-        
+            df = get_container_type(df=df)
+            df = get_kpis(df=df)
+            df = get_queue_mark_and_estop(df=df)
+            # df = get_chassis_mode(df=df)
+
 
     return df
 
@@ -111,7 +121,6 @@ def lmd_get_current_task_tag(current_task=str, mission_type=str, location_ref=st
     else:
         return current_task
 
-
 def get_cycle(df=pd.DataFrame):
     '''
     Get cycle id,
@@ -166,14 +175,117 @@ def get_cycle_tag(df=pd.DataFrame):
         pass
     return df
 
-def get_container_info(df=pd.DataFrame):
-    
+def get_container_type(df=pd.DataFrame):    
+    df['box'] = ''
+    df['TEU'] = ''
+
     for cycle, data in df.groupby('Cycle Tag'):
-        col = ['container1_type', 'container2_type']
-        # print('Good to go.')
+        data['container_tag'] = data['container1_type'].astype(str) + data['container2_type'].astype(str)
+
+        rtg_ind = data[
+            (data['task_stage']=='Waiting for Operation') & 
+            (data['location_ref'].str.contains('YARD', na=False))
+            ].index.to_list()
+        
+        rtg_data = data[data.index.isin(rtg_ind)]
+        n_mission= len(rtg_data['missionID'].value_counts().index.tolist())
+        cntr_tag = data['container_tag'].value_counts().index.tolist()[0]
+        
+        if n_mission>=2:
+            container_tag = '2020'
+            box, teu = 2, 2
+        else:
+            container_tag = cntr_tag
+            box = 1
+            if '2' in container_tag: teu = 1
+            else: teu = 2
+
+        data_ind = data.index
+        df.loc[data_ind, "container_tag"] = container_tag
+        df.loc[data_ind, 'box'] = box
+        df.loc[data_ind, 'TEU'] = teu
+
     return df
 
+def get_queue_mark_and_estop(df=pd.DataFrame):
+    col = 'local_time'
+    df[col] = pd.to_datetime(df[col], format='%Y-%m-%d %H:%M:%S')
+    df["Q_mark"] = ""
+    df['estop boolean'] = ""
+    for cycle_id, cycle_data in df.groupby('Cycle Tag'):
+        df['estop boolean'] =  (df['distance_km'] - df['distance_km'].shift(1)).apply(lambda x: True if abs(x)>=(9/1000) else False)
+        queue_data = cycle_data[cycle_data["speed"] <=0.1].copy(deep=True)
+        queue_data["time_diff"] = (queue_data['local_time'] - queue_data['local_time'].shift(1)).apply(lambda x: x.total_seconds()).fillna(0).astype('int64')
+        queue_point = queue_data[queue_data["time_diff"] > 15]
 
+        if len(queue_data) > 0:
+            if len(queue_point) == 0:
+                df.loc[queue_data.index.to_list(), "Q_mark"] = "Q1"
+            else:
+                queue_id = 1
+                df.loc[queue_data[queue_data["local_time"] < queue_point.iloc[0]["local_time"]].index.to_list(), "Q_mark"] = "Q" + str(queue_id)
+                queue_id += 1
+
+                for i in range(0, len(queue_point) - 1):
+                    df.loc[queue_data[
+                        (queue_data["local_time"] >= queue_point.iloc[i]["local_time"]) &
+                        ((queue_data["local_time"] < queue_point.iloc[i + 1]["local_time"]))].index.to_list(), 
+                                    "Q_mark"] = "Q" + str(queue_id)
+                    queue_id += 1
+
+                df.loc[queue_data[queue_data["local_time"]
+                                    >= queue_point.iloc[-1]["local_time"]].index.to_list(), "Q_mark"] = "Q" + str(queue_id)
+    return df
+
+def get_chassis_mode(df=pd.DataFrame):
+    col = 'local_time'
+    df[col] = pd.to_datetime(df[col], format='%Y-%m-%d %H:%M:%S')
+
+    # Defaults
+    df['target_chassis'] = ''    
+
+    for cid, cdata in df.groupby(by='Cycle Tag', sort='local_time'):
+        cdata = cdata[cdata['chassis_mode']==2].copy()
+        if len(cdata) > 0:          # data with pulled records
+            # chassis_mode = cdata['chassis_mode'].value_counts().index.tolist()
+            cdata['time diff'] = (cdata['local_time'] - cdata['local_time'].shift(1)).apply(lambda x: x.total_seconds()).fillna(3).astype('int64')
+
+            cdata_ind = cdata.index
+            split_data = cdata[cdata['time diff'] > 90] # time difference > 90s 
+
+            pulled_id = int(1)
+            if len(split_data) == 0:
+                df.loc[cdata_ind, 'target_chassis'] = 'Pulled'+str(pulled_id) + f' {cid}' # Pulled1 cid
+                
+            else: 
+                # First pull
+                df.loc[cdata[ (cdata['local_time'] <= split_data.iloc[0]['local_time'])].index, 
+                    'target_chassis'] = 'Pulled' + str(pulled_id) + f' {cid}'
+                pulled_id += 1
+                # Pulls in between
+                for i in range(0, len(split_data)-1):
+                    df.loc[cdata[
+                            (cdata['local_time'] >= split_data.iloc[i]['local_time']) &
+                            (cdata['local_time'] <= split_data.iloc[i+1]['local_time'])
+                            ].index, 
+                            'target_chassis'] = 'Pulled'+str(pulled_id) + f' {cid}'
+                    pulled_id += 1
+                # Last pull
+                df.loc[cdata[
+                    (cdata['local_time'] > split_data.iloc[-1]['local_time'])].index, 
+                    'target_chassis'] = 'Pulled'+str(pulled_id) + f' {cid}'
+                
+    return df
+
+def get_kpis(df=pd.DataFrame):
+    duration_s = [3] * df.shape[0]
+    distance_m = [df['speed'].iloc[i] * 3 for i in range(df.shape[0])]
+    distance_km =[float(distance_m[i])/1000 for i in range(df.shape[0])]
+
+    df['duration_s'] = duration_s
+    df['distance_km']= distance_km
+
+    return df
 
 def location_clean(df=pd.DataFrame):
     '''Create and return two extra features: location_ref, location_tag.'''

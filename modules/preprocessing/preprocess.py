@@ -66,7 +66,8 @@ def __igv_filter__(project=str, vessel_name=None, df=pd.DataFrame):
     elif project in ['WH', 'TPY']:
         df['vesselVisitID'] = [vessel_name] * df.shape[0]
     elif project== 'TJ': # not working check why
-        df = df[(df['vesselVisitID'].isna() == False) & (df['vesselVisitID']!='None')]
+        val_to_drop = ['None', '']
+        df = df[df['vesselVisitID'].isin(val_to_drop)==False]
 
     # Current task
     if project.upper() in ['DL', 'TS', 'YH', 'TPY']:

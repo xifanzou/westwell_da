@@ -3,7 +3,7 @@ import re
 import pandas as pd
 from modules.data_pipeline import get_path 
 from modules.data_pipeline import read_path 
-from modules.preprocessing.task_process import sheet_calculation # For excel file export only, a specific process required
+from modules.task import task_process # For excel file export only, a specific process required
 
 def export_to_csv(week_num=int, data_src=str):
     '''
@@ -39,7 +39,7 @@ def __task_export_rule__(week_num=int, data_src='TASK'):
                                         project=project, 
                                         df_dict=df_dict)
             
-            sheet1, sheet2, sheet3, weekly_df_excel = sheet_calculation(weekly_df)
+            sheet1, sheet2, sheet3, weekly_df_excel = task_process.sheet_calculation(weekly_df)
             weekly_path_excel = __create_weekly_path_excel__(week_num=week_num, 
                                                             data_src=data_src,
                                                             project=project)

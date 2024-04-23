@@ -1,8 +1,12 @@
 import pandas as pd 
 import os
 import re
+
 from modules.data_pipeline import get_path
-from modules.preprocessing import preprocess, task_process, error_process, igv_process
+from modules.preprocessing import preprocess
+from modules.error import error_process
+from modules.task import task_process
+from modules.IGV import igv_process
 
 def read(week_num=int, data_src=str) -> dict:
     '''
@@ -27,7 +31,6 @@ def read(week_num=int, data_src=str) -> dict:
                 vessel_name = folder_name
             
             for file_path in path_dict[folder_name]:
-                # try:
                 df = pd.read_csv(file_path, encoding='utf-8-sig', on_bad_lines='skip')
                 cleaned_df = preprocess.run(project=project, data_src=data_src, df=df, vessel_name=vessel_name)
 
@@ -60,6 +63,8 @@ def __process_by_data_src__(project=str, data_src=str, df=pd.DataFrame, vessel_n
         processed_df = error_process.run(df=df)
     elif data_src.upper() == 'IGV':
         processed_df = igv_process.run(project=project, df=df)
+        processed_df['project'] = ''
+        processed_df.loc[processed_df.index, 'project'] = project
     return processed_df
 
 

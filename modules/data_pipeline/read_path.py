@@ -32,14 +32,17 @@ def read(week_num=int, data_src=str) -> dict:
             
             for file_path in path_dict[folder_name]:
                 df = pd.read_csv(file_path, encoding='utf-8-sig', on_bad_lines='skip')
-                cleaned_df = preprocess.run(project=project, data_src=data_src, df=df, vessel_name=vessel_name)
+                df['project'], df['week'] = '', ''
+                df.loc[df.index, 'project'], df.loc[df.index, 'week'] = project, f"W{week_num}"
 
+                cleaned_df = preprocess.run(project=project, data_src=data_src, df=df, vessel_name=vessel_name)
+                
                 if len(cleaned_df)>=100:     
                     print(f'Now processing ---> {project, folder_name, os.path.basename(file_path)}')   
                     processed = __process_by_data_src__(project=project, data_src=data_src, df=cleaned_df, vessel_name=vessel_name)
                     
                     # IGV dfs with at least 10 mins records (3s/record)
-                    if (processed.shape[0] >= 200) | (data_src.upper() != 'IGV'):                     
+                    if (len(processed) >= 200) | (data_src.upper() != 'IGV'):                     
                         if folder_name not in groupped_df:
                             groupped_df[folder_name] = [processed]
                         else:
@@ -63,8 +66,6 @@ def __process_by_data_src__(project=str, data_src=str, df=pd.DataFrame, vessel_n
         processed_df = error_process.run(df=df)
     elif data_src.upper() == 'IGV':
         processed_df = igv_process.run(project=project, df=df)
-        processed_df['project'] = ''
-        processed_df.loc[processed_df.index, 'project'] = project
     return processed_df
 
 

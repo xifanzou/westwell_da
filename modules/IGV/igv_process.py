@@ -9,6 +9,7 @@ from modules.IGV import get_container_type
 def run(project=str, df=pd.DataFrame):
     '''
     All functions should be executed in sequence.
+    Processings are based on `vehicle_id` level.
     '''
     project = project.upper()
 
@@ -17,6 +18,7 @@ def run(project=str, df=pd.DataFrame):
         df = get_lon_lat(project=project, df=df)
         df = utm_rotation(df=df, angle=101.4765)
         df = get_container_type(df=df)
+        df = get_power_usage(df=df)
         df = get_kpis(df=df)
         df = get_queue_mark_and_estop(df=df)
         df = get_chassis_mode(df=df)
@@ -32,9 +34,10 @@ def run(project=str, df=pd.DataFrame):
         df = get_cycle_tag(df=df)
         if 'Cycle Tag' in df.columns:
             df = get_container_type(df=df)
+            df = get_power_usage(df=df)
             df = get_kpis(df=df)
             df = get_queue_mark_and_estop(df=df)
-            # df = get_chassis_mode(df=df)
+            df = get_chassis_mode(df=df)
 
 
     return df
@@ -286,6 +289,21 @@ def get_kpis(df=pd.DataFrame):
     df['distance_km']= distance_km
 
     return df
+
+def get_power_usage(df=pd.DataFrame):
+    df['power usage'] = ''
+    for cycle, data in df.groupby('Cycle Tag'):
+        data['soc_diff'] = data['soc'] - data['soc'].shift(-1)
+        data['power_usage'] = data['soc_diff'].apply(lambda x: lambda_power_usage(x))
+        df.loc[data.index, 'power usage'] = data['power_usage']
+
+    return df
+
+def lambda_power_usage(soc_diff):
+    if soc_diff > 0 and soc_diff<=5: return soc_diff
+    elif soc_diff<=0 and soc_diff>-5: return 0
+    elif soc_diff >5: return 5
+    elif soc_diff<=-5: return -1
 
 def location_clean(df=pd.DataFrame):
     '''Create and return two extra features: location_ref, location_tag.'''

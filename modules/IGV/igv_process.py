@@ -2,9 +2,8 @@ import pandas as pd
 import numpy as np
 from pyproj import Proj
 import math
-from modules.IGV import igv_process_icave 
+from modules.IGV import igv_process_icave, icave_get_checkpoints
 from modules.map import get_map_config
-from modules.IGV import get_container_type
 
 def run(project=str, df=pd.DataFrame):
     '''
@@ -15,13 +14,16 @@ def run(project=str, df=pd.DataFrame):
 
     if project == 'ICA':
         df = igv_process_icave.ica_processer(df=df)
+        df = get_cycle(df=df)
+        df = get_cycle_tag(df=df)
         df = get_lon_lat(project=project, df=df)
-        df = utm_rotation(df=df, angle=101.4765)
+        df = utm_rotation(df=df, angle=101.4765) # icave specific
         df = get_container_type(df=df)
         df = get_power_usage(df=df)
         df = get_kpis(df=df)
         df = get_queue_mark_and_estop(df=df)
         df = get_chassis_mode(df=df)
+        df = icave_get_checkpoints.get(df=df)
 
     elif project == 'CK':
         df = df
@@ -33,48 +35,51 @@ def run(project=str, df=pd.DataFrame):
         df = get_cycle(df=df)
         df = get_cycle_tag(df=df)
         if 'Cycle Tag' in df.columns:
+            df = get_lon_lat(project=project, df=df)
             df = get_container_type(df=df)
             df = get_power_usage(df=df)
             df = get_kpis(df=df)
             df = get_queue_mark_and_estop(df=df)
             df = get_chassis_mode(df=df)
 
-
     return df
 
 def get_lon_lat(project=str, df=None):
-    # get map configs
+    # get map cfgs
     project = project.upper()
-    config = get_map_config()[project]
-    x_ref, y_ref, zone_ref, theta = config['ref_x'], config['ref_y'], config['zone_id'], config['ref_theta']
-    
-    # create utm instance
-    utm = Proj(proj='utm', zone=zone_ref, ellps='WGS84') 
+    try:
+        config = get_map_config()[project]
+        x_ref, y_ref, zone_ref, theta = config['ref_x'], config['ref_y'], config['zone_id'], config['ref_theta']
+        
+        # create utm instance
+        utm = Proj(proj='utm', zone=zone_ref, ellps='WGS84') 
 
-    rotation_matrix = np.array([[np.cos(theta),-np.sin(theta)],
-                    [np.sin(theta), np.cos(theta)]])
-    rotation_matrix_inv = np.linalg.inv(rotation_matrix)   
+        rotation_matrix = np.array([[np.cos(theta),-np.sin(theta)],
+                        [np.sin(theta), np.cos(theta)]])
+        rotation_matrix_inv = np.linalg.inv(rotation_matrix)   
 
-    col = ['position_lon', 'position_lat']
-    if ('position_x' in df.columns) & ('position_y' in df.columns):
-        df['position_lon'] = df['position_x'].apply(lambda x_pos: x_pos-x_ref)
-        df['position_lat'] = df['position_y'].apply(lambda y_pos: y_pos-y_ref)
-    else:
-        df['position_lon'] = df['x'].apply(lambda x_pos: x_pos-x_ref)
-        df['position_lat'] = df['y'].apply(lambda y_pos: y_pos-y_ref)            
+        col = ['position_lon', 'position_lat']
+        if ('position_x' in df.columns) & ('position_y' in df.columns):
+            df['position_lon'] = df['position_x'].apply(lambda x_pos: x_pos-x_ref)
+            df['position_lat'] = df['position_y'].apply(lambda y_pos: y_pos-y_ref)
+        else:
+            df['position_lon'] = df['x'].apply(lambda x_pos: x_pos-x_ref)
+            df['position_lat'] = df['y'].apply(lambda y_pos: y_pos-y_ref)            
 
-    inversed_vec_res = list(map(lambda x: rotation_matrix_inv @ x, df[col].to_numpy()))
-    gps_res = list(map(lambda x: utm(x[0], x[1], inverse=True), inversed_vec_res))
-    lon, lat = list(map(lambda x: x[0], gps_res)), list(map(lambda x: x[1], gps_res))
+        inversed_vec_res = list(map(lambda x: rotation_matrix_inv @ x, df[col].to_numpy()))
+        gps_res = list(map(lambda x: utm(x[0], x[1], inverse=True), inversed_vec_res))
+        lon, lat = list(map(lambda x: x[0], gps_res)), list(map(lambda x: x[1], gps_res))
 
-    df['position_lon'], df['position_lat'] = lon, lat
+        df['position_lon'], df['position_lat'] = lon, lat
+    except KeyError:
+        print(f'{project} has no map config')
 
     return df
 
 def utm_rotation(df=pd.DataFrame, angle=float):
     '''
     ICAVE project only.
-    Mexico angle = 101.4765
+    ICAVE map angle = 101.4765
     '''
     theta = math.radians(180-float(angle))
     rotation_matrix = np.array([
@@ -282,10 +287,12 @@ def get_chassis_mode(df=pd.DataFrame):
 
 def get_kpis(df=pd.DataFrame):
     duration_s = [3] * df.shape[0]
+    duration_min = [3/60] * df.shape[0]
     distance_m = [df['speed'].iloc[i] * 3 for i in range(df.shape[0])]
     distance_km =[float(distance_m[i])/1000 for i in range(df.shape[0])]
 
     df['duration_s'] = duration_s
+    df['duration_min']=duration_min
     df['distance_km']= distance_km
 
     return df
@@ -294,12 +301,12 @@ def get_power_usage(df=pd.DataFrame):
     df['power usage'] = ''
     for cycle, data in df.groupby('Cycle Tag'):
         data['soc_diff'] = data['soc'] - data['soc'].shift(-1)
-        data['power_usage'] = data['soc_diff'].apply(lambda x: lambda_power_usage(x))
+        data['power_usage'] = data['soc_diff'].apply(lambda x: lmd_power_usage(x))
         df.loc[data.index, 'power usage'] = data['power_usage']
 
     return df
 
-def lambda_power_usage(soc_diff):
+def lmd_power_usage(soc_diff):
     if soc_diff > 0 and soc_diff<=5: return soc_diff
     elif soc_diff<=0 and soc_diff>-5: return 0
     elif soc_diff >5: return 5

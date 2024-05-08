@@ -1,7 +1,7 @@
 import pandas as pd
 from modules.IGV import igv_process
 
-def ica_processer(df=pd.DataFrame) -> pd.DataFrame:
+def adhoc_process(df=pd.DataFrame) -> pd.DataFrame:
     '''
     IGV data cleaning and processing for ICAVE project.
     All functions should be executed in sequence.
@@ -16,10 +16,37 @@ def ica_processer(df=pd.DataFrame) -> pd.DataFrame:
     df = get_location2(df=df)
     df = get_current_task_tag(df=df)
     df['location_ref'] = df['target_location'].apply(lambda x: lmd_get_location_ref(x))
+
+    # location block
     df['location_block']=df['target_location'].apply(lambda x: lmd_get_location_block(x))
+    # df = correct_block(df=df)
+
+    # mission type
     df['mission_type'] = df.apply(lambda x: lmd_get_mission_type(x['current_task_tag'], x['location_ref']), axis=1)
-    # df = igv_process.get_cycle(df=df)
-    # df = igv_process.get_cycle_tag(df=df)
+    return df
+
+def correct_block(df=pd.DataFrame):
+    '''
+    Fill np.NaN in `location_block` after get `Cycle Tag` feature,
+    Prepare for generating checkpoints,
+    Must be executed after `get_cycle` and before `get_checkpoints`.
+    
+    Parameters:
+    df (pd.Dataframe): cleaned and adhoc processed ICAVE dataframe, with `Cycle Tag` info
+
+    Returns:
+    df (pd.Dataframe): dataframe with correct block info
+    '''
+    exp_li = []
+    df = df.sort_values(by=['vehicle_id', 'Cycle Tag','local_time']).reset_index(drop=True)
+    for cycle, data in df.groupby('Cycle Tag'):
+        data['location_block'] = data['location_block'].ffill().bfill()
+        if len(data['location_block'].value_counts().index.tolist())>1:
+            val = 'D'
+            data.loc[data['location_block']!=val, 'location_block'] = val
+        exp_li.append(data)
+    
+    df = pd.concat(exp_li, axis=0)
 
     return df
 
@@ -57,5 +84,4 @@ def lmd_get_mission_type(current_task_tag=str, location_tag=str) :
         if (location_tag=='YARD') | (location_tag=='TS'):    return 'DELIVER'
         elif location_tag=='QCTP':  return 'RECEIVE'
     else: return
-
 

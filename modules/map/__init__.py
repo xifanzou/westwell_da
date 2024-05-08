@@ -10,5 +10,5 @@ def get_map_config():
 with open(os.path.join(os.path.dirname(__file__), 'icave_points_config.json'), 'r') as f:
     ica_points_config = json.load(f)
 
-def get_ica_points_config():
+def get_ica_config():
     return ica_points_config

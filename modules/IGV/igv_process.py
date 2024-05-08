@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from pyproj import Proj
 import math
-from modules.IGV import igv_process_icave, icave_get_checkpoints
+from modules.IGV import icave_processer, icave_get_checkpoints
 from modules.map import get_map_config
 
 def run(project=str, df=pd.DataFrame):
@@ -13,9 +13,10 @@ def run(project=str, df=pd.DataFrame):
     project = project.upper()
 
     if project == 'ICA':
-        df = igv_process_icave.ica_processer(df=df)
+        df = icave_processer.adhoc_process(df=df)
         df = get_cycle(df=df)
         df = get_cycle_tag(df=df)
+        df = icave_processer.correct_block(df=df)
         df = get_lon_lat(project=project, df=df)
         df = utm_rotation(df=df, angle=101.4765) # icave specific
         df = get_container_type(df=df)

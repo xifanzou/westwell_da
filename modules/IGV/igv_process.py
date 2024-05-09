@@ -18,7 +18,7 @@ def run(project=str, df=pd.DataFrame):
         df = get_cycle_tag(df=df)
         df = icave_processer.correct_block(df=df)
         df = get_lon_lat(project=project, df=df)
-        df = utm_rotation(df=df, angle=101.4765) # icave specific
+        df = utm_rotation(df=df, angle=101.4765) # icave 
         df = get_container_type(df=df)
         df = get_power_usage(df=df)
         df = get_kpis(df=df)

@@ -2,7 +2,7 @@ import os
 import re
 import pandas as pd
 from modules.data_pipeline import get_path 
-from modules.data_pipeline import read_path 
+from modules.data_pipeline import process_data 
 from modules.task import task_process # For excel file export only, a specific process required
 
 def export_to_csv(week_num=int, data_src=str):
@@ -22,7 +22,7 @@ def export_to_csv(week_num=int, data_src=str):
         __task_export_rule__(week_num=week_num, data_src=data_src)
     else:
         path_dict = get_path.get(week_num=week_num, data_src=data_src)
-        df_dict = read_path.read(week_num=week_num, data_src=data_src)
+        df_dict = process_data.read(week_num=week_num, data_src=data_src)
         for project in path_dict.keys():
             __export_init__(week_num=week_num, data_src=data_src,
                                 project=project, df_dict=df_dict)
@@ -31,7 +31,7 @@ def export_to_csv(week_num=int, data_src=str):
 
 def __task_export_rule__(week_num=int, data_src='TASK'):
     path_dict = get_path.get(week_num=week_num, data_src=data_src)
-    df_dict = read_path.read(week_num=week_num, data_src=data_src)
+    df_dict = process_data.read(week_num=week_num, data_src=data_src)
     for project in path_dict.keys():
         if project.upper() == 'TJ': 
             weekly_df = __export_init__(week_num=week_num, 
@@ -120,13 +120,30 @@ def __create_folder__(week_num=int, data_src=str, project=str) -> str:
         print(f"Created directory: {file_folder_p}")
     return file_folder_p
 
+
+def __create_single_path__(data_src=str, export_folder_name=str, folder_name=str):
+    if data_src.upper()=='IGV': 
+        export_file_path = os.path.join(export_folder_name, 
+                            f'{data_src.upper()}Data_{folder_name}.csv')
+    else:
+        export_file_path = os.path.join(export_folder_name, 
+                            f'{data_src.capitalize()}Data_{folder_name}.csv')
+
+    return export_file_path
+
+
 def __create_weekly_path__(week_num=int, data_src=str, project=str):
     """
     Generate the export path for the merged dataframes.
     """
-    merged_csv_path = os.path.join('data\\processed',
-                                   f'W{week_num}',
-                                   f"{data_src.capitalize()}_W{week_num}_{project}.csv")
+    if data_src.upper() == 'IGV':
+        merged_csv_path = os.path.join('data\\processed',
+                                    f'W{week_num}',
+                                    f"{data_src.upper()}_W{week_num}_{project}.csv")
+    else:
+        merged_csv_path = os.path.join('data\\processed',
+                                    f'W{week_num}',
+                                    f"{data_src.capitalize()}_W{week_num}_{project}.csv")
     merged_csv_path = os.path.abspath(merged_csv_path)
 
     return merged_csv_path
@@ -135,9 +152,15 @@ def __create_weekly_path_excel__(week_num=int, data_src=str, project=str):
     """
     Generate the export path for the merged dataframes.
     """
-    merged_xlsx_path = os.path.join('data\\processed',
-                                   f'W{week_num}',
-                                   f"{data_src.capitalize()}_W{week_num}_{project}.xlsx")
+    if data_src.upper() == 'IGV':
+        merged_xlsx_path = os.path.join('data\\processed',
+                                    f'W{week_num}',
+                                    f"{data_src.upper()}_W{week_num}_{project}.xlsx")
+    else:
+        merged_xlsx_path = os.path.join('data\\processed',
+                                    f'W{week_num}',
+                                    f"{data_src.capitalize()}_W{week_num}_{project}.xlsx")
+        
     merged_xlsx_path = os.path.abspath(merged_xlsx_path)
 
     return merged_xlsx_path

@@ -99,7 +99,7 @@ def lmd_ckps(location_section, target_location, SL, current_task, x, y):
             return '3->4'
         else:
             if location_section=='QC':
-                if 'block' in target_location: 
+                if 'block' in target_location or 'ts' in target_location: 
                      return '9->1'
                 elif 'block' not in target_location:
                     if current_task!='Drive': 

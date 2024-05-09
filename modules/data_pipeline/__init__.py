@@ -2,7 +2,7 @@
 
 import os
 from .get_path import get
-from .read_path import read
+from .process_data import read
 from .export_file import export_to_csv
 from modules.preprocessing import preprocess
 from modules.task import task_process

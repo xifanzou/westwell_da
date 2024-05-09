@@ -26,9 +26,9 @@ def run(project=str, data_src=str, df=pd.DataFrame, vessel_name=str) -> pd.DataF
         preprocessed = __task_filter__(df=stripped_df)
     elif data_src == 'IGV':
         project = project.upper()
-        print(f'Before filter: {stripped_df.shape}')
+        # print(f'Before filter: {stripped_df.shape}')
         preprocessed = __igv_filter__(project=project, vessel_name=vessel_name, df=stripped_df)
-        print(f'After filter {preprocessed.shape}')
+        # print(f'After filter {preprocessed.shape}')
 
     # except Exception as e:
     #     print("An error occurred:", e)
@@ -57,7 +57,8 @@ def __igv_filter__(project=str, vessel_name=None, df=pd.DataFrame):
     
     # Target_location
     if project.upper() in ['WH', 'DL', 'TS', 'YH', 'TPY']:
-        df['target_location'] = df['target_location'].apply(lambda x: x if len(x)>1 else np.NAN)
+        df['target_location'] = df['target_location'].fillna('na')
+        df['target_location'] = df['target_location'].apply(lambda x: x if ((len(x)>2)&(type(x)==str)) else np.NAN)
         df = df[df['target_location'].isna()==False]
     
     # vesselVisitID

@@ -166,7 +166,7 @@ def get_cycle(df=pd.DataFrame):
     
     df = pd.concat(data_li, axis=0)
     df['cycle'] = df.index.map(cycle_dict)    
-    df['cycle'] = df['cycle'].ffill()
+    df['cycle'] = df['cycle'].ffill().bfill()
     # df.drop(columns=['mission_type_change'], inplace=True)
     df = df.reset_index(drop=True)
 
@@ -176,7 +176,7 @@ def get_cycle_tag(df=pd.DataFrame):
     try:
         cycle_tag_suffix = f"-{df['local_time'].iloc[1]}"
         df['Cycle Tag'] = (df['vehicle_id'].astype(str) + '-' +
-                            df['vesselVisitID'].astype(str) + 'C' +
+                            # df['vesselVisitID'].astype(str) + 'C' +
                             df['cycle'].astype(str) +
                             cycle_tag_suffix)
     except IndexError:

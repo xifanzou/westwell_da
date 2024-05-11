@@ -97,7 +97,8 @@ def  __igv_ica_filter__(df=pd.DataFrame):
     df['mission_type_org'] = df['mission_type'].copy()
     df['vesselVisitID'] = df['local_time'].dt.month + df['local_time'].dt.day
     df = df[(df['mission_type_org'].str.contains('VSDS')) | 
-            (df['mission_type_org'].str.contains('VSLD'))]
+            (df['mission_type_org'].str.contains('VSLD')) |
+            (df['mission_type_org'].str.contains('XRAY'))]
     
     # Filter on target location
     df = df[(df['target_location'].apply(lambda x: len(x)) >= 25) |

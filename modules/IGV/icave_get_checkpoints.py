@@ -91,7 +91,7 @@ def lmd_ckps(location_section, target_location, SL, current_task, x, y):
     try:
         data_dict = get_ica_config()[str(location_section)]
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred when getting ica map config: {e}")
         pass
     else:
         corridor = get_ica_config()['CR']

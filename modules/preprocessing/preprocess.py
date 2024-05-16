@@ -100,9 +100,18 @@ def  __igv_ica_filter__(df=pd.DataFrame):
             (df['mission_type_org'].str.contains('VSLD')) |
             (df['mission_type_org'].str.contains('XRAY'))]
     
+    # Deal with XRAY 
+    df['mission_type'] = df['mission_type'].apply(lambda x: np.NaN if x=='XRAY' else x)
+    df['mission_type'] = df['mission_type'].ffill()
+    
     # Filter on target location
     df = df[(df['target_location'].apply(lambda x: len(x)) >= 25) |
-    df['target_location'].str.contains('ts')]
+            df['target_location'].str.contains('ts') |
+            df['target_location'].str.contains('tp')
+            ]
+    ## Deal with tp
+    df['target_location'] = df['target_location'].apply(lambda x: np.NaN if 'tp' in x else x)
+    df['target_location'] = df['target_location'].ffill()
 
     return df
 

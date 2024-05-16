@@ -76,7 +76,7 @@ def __igv_src__(project=str, file_paths=list) -> list:
     if project not in ['ICA', 'YH']:
         igv_file_paths = [path for path in file_paths if 'igv' in path.lower()]
     else:
-        igv_file_paths = [path for path in file_paths if len(re.findall(r'IGVData_KPI|Data.csv|_igv_', path))>0]
+        igv_file_paths = [path for path in file_paths if len(re.findall(r'IGVData_KPI|Data.csv|_igv_|Data', path))>0]
     return igv_file_paths
 
 def __task_src__(file_paths=list) -> list:

@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from modules.IGV import igv_process
 
@@ -15,14 +16,18 @@ def adhoc_process(df=pd.DataFrame) -> pd.DataFrame:
     df = df.sort_values('local_time').reset_index(drop=True)
     df = get_location2(df=df)
     df = get_current_task_tag(df=df)
+    df['current_task_tag'] = df['current_task_tag'].ffill() # fill XRAY with previous task
+
     df['location_ref'] = df['target_location'].apply(lambda x: lmd_get_location_ref(x))
+    df['location_ref'] = df['location_ref'].ffill()
 
     # location block
-    df['location_block']=df['target_location'].apply(lambda x: lmd_get_location_block(x))
+    df['location_block'] = df['target_location'].apply(lambda x: lmd_get_location_block(x))
     # df = correct_block(df=df)
 
     # mission type
     df['mission_type'] = df.apply(lambda x: lmd_get_mission_type(x['current_task_tag'], x['location_ref']), axis=1)
+    df['mission_type'] = df['mission_type'].ffill()
     return df
 
 def correct_block(df=pd.DataFrame):
@@ -38,17 +43,20 @@ def correct_block(df=pd.DataFrame):
     df (pd.Dataframe): dataframe with correct block info
     '''
     exp_li = []
-    df = df.sort_values(by=['vehicle_id', 'Cycle Tag','local_time']).reset_index(drop=True)
-    for cycle, data in df.groupby('Cycle Tag'):
-        data['location_block'] = data['location_block'].ffill().bfill()
-        if len(data['location_block'].value_counts().index.tolist())>1:
-            val = 'D'
-            data.loc[data['location_block']!=val, 'location_block'] = val
-        exp_li.append(data)
-    
-    df = pd.concat(exp_li, axis=0)
+    if 'Cycle Tag' in df.columns:
+        df = df.sort_values(by=['vehicle_id', 'Cycle Tag','local_time']).reset_index(drop=True)
+        for cycle, data in df.groupby('Cycle Tag'):
+            data['location_block'] = data['location_block'].ffill().bfill()
+            if len(data['location_block'].value_counts().index.tolist())>1:
+                val = 'D'
+                data.loc[data['location_block']!=val, 'location_block'] = val
+            exp_li.append(data)
+        
+        df = pd.concat(exp_li, axis=0)
 
-    return df
+        return df
+    else:
+        return df == pd.DataFrame({})
 
 def get_location2(df=pd.DataFrame):
     df['target_location2'] = df['target_location'].str.split(r'\， ').str[1].fillna('')
@@ -66,7 +74,7 @@ def lmd_get_location_ref(target_location=str) -> str:
     if "crane" in target_location:      return 'QCTP'
     elif "block" in target_location:    return 'YARD'
     elif 'ts' in target_location:       return 'TS'
-    else: return 'None'
+    else: return np.NaN
 
 def lmd_get_location_block(target_location=str):
     if 'D' in target_location: return 'D'
@@ -78,10 +86,10 @@ def get_current_task_tag(df=pd.DataFrame):
 
 def lmd_get_mission_type(current_task_tag=str, location_tag=str) :
     if current_task_tag=='LOAD':
-        if location_tag=='YARD':    return 'RECEIVE'
-        elif (location_tag=='QCTP') | (location_tag=='TS'):  return 'DELIVER'
+        if (location_tag=='YARD'):    return 'RECEIVE'
+        elif (location_tag=='QCTP') | (location_tag=='TS') :  return 'DELIVER'
     elif current_task_tag=='DSCH':
-        if (location_tag=='YARD') | (location_tag=='TS'):    return 'DELIVER'
-        elif location_tag=='QCTP':  return 'RECEIVE'
+        if (location_tag=='YARD') | (location_tag=='TS') :    return 'DELIVER'
+        elif (location_tag=='QCTP'):  return 'RECEIVE'
     else: return
 

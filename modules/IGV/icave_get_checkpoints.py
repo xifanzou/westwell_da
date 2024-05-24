@@ -14,7 +14,7 @@ def get(df=pd.DataFrame) -> pd.DataFrame:
     df['location_section'] = df.apply(lambda x: lmd_section_relabel(x['location_section'], x['position_x'], x['position_y']), axis=1)
 
     # get breakdown, cut in and cut outs
-    df['ckp_demo'] = df.apply(lambda x: lmd_ckps(x['location_section'], x['target_location'], x['SL'], x['current_task'], x['position_x'], x['position_y']), axis=1)
+    df['ckp_demo'] = df.apply(lambda x: lmd_ckps(x['location_section'], x['target_location'], x['SL'], x['current_task'], x['mission_type_org'], x['position_x'], x['position_y']), axis=1)
     df['cut_in'] = df['ckp_demo'].apply(lambda x: True if x=='2->3' else False)
     df['cut_out']= df['ckp_demo'].apply(lambda x: True if x=='4->5' else False)
 
@@ -64,10 +64,10 @@ def lmd_section_relabel(location_section, x, y):
         return 'QC'
     else: return location_section
 
-def lmd_ckps(location_section, target_location, SL, current_task, x, y):
+def lmd_ckps(location_section, target_location, SL, current_task, mission_type_org, x, y):
     '''
     Lambda function to encode checkpoint for each location point,
-        1-2: heading to YARD and not in service lane
+        1-2: heading to YARD and not in service lane # XRAY
         2-3: heading to YARD and not in service lane, along with cut-in behaviour
         3-4: in YARD service lane
         4-5: heading to QC but still in YARD area, along with cut-out behaviour
@@ -97,6 +97,8 @@ def lmd_ckps(location_section, target_location, SL, current_task, x, y):
         corridor = get_ica_config()['CR']
         if SL == True: 
             return '3->4'
+        elif 'XRAY' in mission_type_org:
+            return '1->2'
         else:
             if location_section=='QC':
                 if 'block' in target_location or 'ts' in target_location: 

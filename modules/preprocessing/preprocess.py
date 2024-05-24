@@ -96,13 +96,15 @@ def  __igv_ica_filter__(df=pd.DataFrame):
     df['local_time'] = pd.to_datetime(df['local_time'], format='%Y-%m-%d %H:%M:%S')
     df['mission_type_org'] = df['mission_type'].copy()
     df['vesselVisitID'] = df['local_time'].dt.month + df['local_time'].dt.day
-    df = df[(df['mission_type_org'].str.contains('VSDS')) | 
-            (df['mission_type_org'].str.contains('VSLD')) |
-            (df['mission_type_org'].str.contains('XRAY'))]
+    df = df[(df['mission_type'].str.contains('VSDS')) | 
+            (df['mission_type'].str.contains('VSLD')) |
+            (df['mission_type'].str.contains('XRAY'))]
     
     # Deal with XRAY 
-    df['mission_type'] = df['mission_type'].apply(lambda x: np.NaN if x=='XRAY' else x)
-    df['mission_type'] = df['mission_type'].ffill()
+    # print(f'before transform {df.mission_type.value_counts()}')
+    df['mission_type'] = df['mission_type'].apply(lambda x: np.NaN if 'XRAY' in x.upper() else x)
+    # df['mission_type'] = df['mission_type'].ffill()
+    # print(f'After transform {df.mission_type.value_counts()}')
     
     # Filter on target location
     df = df[(df['target_location'].apply(lambda x: len(x)) >= 25) |
@@ -110,9 +112,11 @@ def  __igv_ica_filter__(df=pd.DataFrame):
             df['target_location'].str.contains('tp')
             ]
     ## Deal with tp
-    df['target_location'] = df['target_location'].apply(lambda x: np.NaN if 'tp' in x else x)
-    df['target_location'] = df['target_location'].ffill()
-
+    # print(f'before transform {df.target_location.value_counts()}')
+    # df['target_location'] = df['target_location'].apply(lambda x: np.NaN if 'tp' in x else x)
+    # df['target_location'] = df['target_location'].ffill()
+    # print(f'After transform {df.target_location.value_counts()}')
+    
     return df
 
 def __error_filter__(df=pd.DataFrame):

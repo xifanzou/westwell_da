@@ -175,4 +175,4 @@ def sheet_calculation(df=pd.DataFrame):
     sheet1_cols = ['checkpoint', 'Task Id', 'Time Gap']
     sheet1 = sheet1[sheet1_cols]
 
-    return sheet1, sheet2, sheet3, df_form_dict
+    return df, sheet1, sheet2, sheet3, df_form_dict

@@ -74,9 +74,9 @@ def __get_all_path__(week_num=int, data_src=str) -> dict:
 def __igv_src__(project=str, file_paths=list) -> list:
     igv_file_paths = []
     if project not in ['ICA', 'YH']:
-        igv_file_paths = [path for path in file_paths if 'igv' in path.lower()]
+        igv_file_paths = [path for path in file_paths if ('igv' in path.lower()) or ('vehicle' in path.lower())]
     else:
-        igv_file_paths = [path for path in file_paths if len(re.findall(r'IGVData_KPI|Data.csv|_igv_|Data', path))>0]
+        igv_file_paths = [path for path in file_paths if len(re.findall(r'IGVDATA_KPI|DATA.CSV|_IGV_|DATA', path.upper()))>0]
     return igv_file_paths
 
 def __task_src__(file_paths=list) -> list:

@@ -33,20 +33,20 @@ def __task_export_rule__(week_num=int, data_src='TASK'):
     path_dict = get_path.get(week_num=week_num, data_src=data_src)
     df_dict = process_data.read(week_num=week_num, data_src=data_src)
     for project in path_dict.keys():
-        if project.upper() == 'TJ': 
+        if project.upper() in ['TJ', 'TS', 'YH', 'TPY']: 
             weekly_df = __export_init__(week_num=week_num, 
                                         data_src=data_src, 
                                         project=project, 
                                         df_dict=df_dict)
             
-            sheet1, sheet2, sheet3, weekly_df_excel = task_process.sheet_calculation(weekly_df)
+            weekly_df_excel, sheet1, sheet2, sheet3, df_from_dict = task_process.sheet_calculation(weekly_df)
             weekly_path_excel = __create_weekly_path_excel__(week_num=week_num, 
                                                             data_src=data_src,
                                                             project=project)
             __task_excel_writer__(output_path=weekly_path_excel,
                                   main_output=weekly_df_excel,
                                   sheet1=sheet1, sheet2=sheet2, sheet3=sheet3,
-                                  weekly_df=weekly_df)
+                                  weekly_df=df_from_dict)
     return
 
 def __export_init__(week_num=int, data_src=str, project=str, df_dict=dict):
@@ -75,10 +75,7 @@ def __export_init__(week_num=int, data_src=str, project=str, df_dict=dict):
     # except:
     #     print('No weekly data to export.\n')
 
-    if project.upper() == 'TJ':
-        return weekly_df
-    else:
-        return
+    return weekly_df
 
 def __export_single_file__(data_src=str, df_dict=dict, file_folder_p=str):
     weekly_df = pd.DataFrame()

@@ -183,7 +183,7 @@ def __strip_str__(df=pd.DataFrame):
     obj_cols = df.select_dtypes(['object']).columns
     
     # Strip leading and trailing whitespaces from string columns
-    df[obj_cols] = df[obj_cols].apply(lambda x: x.str.strip())
+    df[obj_cols] = df[obj_cols].apply(lambda x: x.str.strip() if x.dtype == "object" else x)
 
     return df
 

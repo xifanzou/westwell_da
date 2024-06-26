@@ -15,8 +15,8 @@ def get(df=pd.DataFrame) -> pd.DataFrame:
 
     # get breakdown, cut in and cut outs
     df['ckp_demo'] = df.apply(lambda x: lmd_ckps(x['location_section'], x['target_location'], x['SL'], x['current_task'], x['mission_type_org'], x['position_x'], x['position_y']), axis=1)
-    df['cut_in'] = df['ckp_demo'].apply(lambda x: True if x=='2->3' else False)
-    df['cut_out']= df['ckp_demo'].apply(lambda x: True if x=='4->5' else False)
+    df['cut_in'] = df['lane_change_state'].apply(lambda x: True if x==1 else False)
+    df['cut_out']= df['lane_change_state'].apply(lambda x: True if x==2 else False)
 
     # get path A
     df['PathA'] = df.apply(lambda df: lmd_path(df['location_block'], df['position_x'], df['ckp_demo']), axis=1)
@@ -103,7 +103,7 @@ def lmd_ckps(location_section, target_location, SL, current_task, mission_type_o
             if location_section=='QC':
                 if 'block' in target_location or 'ts' in target_location: 
                      return '9->1'
-                elif 'block' not in target_location:
+                else:
                     if current_task!='Drive': 
                         return '8->9'
                     else: 

@@ -16,7 +16,9 @@ def run(project=str, data_src=str, df=pd.DataFrame, vessel_name=str) -> pd.DataF
     Returns:
     df (pd.DataFrame): DataFrame preprocessed and(/or) filtered based on project requirements.
     '''
+    # print(df.columns)
     stripped_df = __strip_str__(df=df)
+    # print(stripped_df.columns)
 
     # try:
     data_src = data_src.upper()

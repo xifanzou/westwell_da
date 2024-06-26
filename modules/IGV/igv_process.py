@@ -4,6 +4,7 @@ from pyproj import Proj
 import math
 from modules.IGV import icave_processer, icave_get_checkpoints
 from modules.map import get_map_config
+from modules.map import get_ica_config, get_TS_config
 
 def run(project=str, df=pd.DataFrame):
     '''
@@ -42,7 +43,11 @@ def run(project=str, df=pd.DataFrame):
             df = get_kpis(df=df)
             df = get_queue_mark_and_estop(df=df)
             df = get_chassis_mode(df=df)
-
+        if project== 'TS':
+            df['SL'] = df.apply(lambda x: lmd_if_in_sl(x['location_section'], x['position_x'], x['position_y']), axis=1)
+            df['location_section'] = df.apply(lambda x: lmd_section_relabel(x['location_section'], x['position_x'], x['position_y']), axis=1)
+            df['checkpoint'] = df.apply(lambda x: lmd_ckps(x['location_section'], x['target_location'], x['SL'], x['task_stage'], x['position_x'], x['position_y']), axis=1)
+            # df = correct_labels(df=df)
     return df
 
 def get_lon_lat(project=str, df=None):
@@ -102,12 +107,16 @@ def utm_rotation(df=pd.DataFrame, angle=float):
 def get_location_tag(df=pd.DataFrame):
     '''
     Extract location_ref and location_tag to prepare for current_task_tag extraction.
+    Example: target_location = YARD.K10.077.01/YARD
+             location_ref    = YARD.K10.077.01
+             location_tag    = YARD
+             location_section= K10
 
     Parameters:    
     df (pd.Dataframe)
 
     Returns:
-    df (pd.DataFrame): Dataframe with `location_ref` and `location_tag`
+    df (pd.DataFrame): Dataframe with `location_ref`, `location_tag` and `location_section`
     '''
     # try:
     if 'target_location' in df.columns:
@@ -115,9 +124,19 @@ def get_location_tag(df=pd.DataFrame):
         df['location_ref'], df['location_tag'] = _tmp[0], _tmp[1]
         df['location_ref'] = df['location_ref'].fillna('TS')
         df['location_tag'] = df['location_tag'].fillna('TS')
+        df['location_section'] = df['location_ref'].str.split('.', expand=True)[1]
+        df['location_section'] = df['location_section'].apply(lambda x: np.NaN if 'QC' in x else x).ffill().bfill()
     # except:
     #     pass
     return df.reset_index(drop=True)
+
+def lmd_section_relabel(location_section, x, y):
+    data_dict = get_TS_config()['QC']
+    if data_dict['x_min']<=x<=data_dict['x_max'] and data_dict['y_min']<=y<=data_dict['y_max']:
+        return 'QC'
+    else: 
+        return location_section
+
 
 def lmd_get_current_task_tag(current_task=str, mission_type=str, location_ref=str):
     if (current_task != 'DSCH') & (current_task != 'LOAD'):
@@ -192,22 +211,28 @@ def get_container_type(df=pd.DataFrame):
         data['container_tag'] = data['container1_type'].astype(str) + data['container2_type'].astype(str)
 
         rtg_ind = data[
-            (data['task_stage']=='Waiting for Operation') & 
+            ((data['task_stage']=='Waiting for Operation') | (data['task_stage']=='Alignment')) & 
             (data['location_ref'].str.contains('YARD', na=False))
             ].index.to_list()
         
         rtg_data = data[data.index.isin(rtg_ind)]
-        n_mission= len(rtg_data['missionID'].value_counts().index.tolist())
-        cntr_tag = data['container_tag'].value_counts().index.tolist()[0]
-        
-        if n_mission>=2:
+        # n_mission= len(rtg_data['missionID'].value_counts().index.tolist())
+        cntr_tag = rtg_data['container_tag'].value_counts().index.tolist()
+        if len(cntr_tag)==1: 
+            container_tag = '400'
+            box, teu = 1, 2
+        else:
             container_tag = '2020'
             box, teu = 2, 2
-        else:
-            container_tag = cntr_tag
-            box = 1
-            if '2' in container_tag: teu = 1
-            else: teu = 2
+
+        # if n_mission>=2:
+        #     container_tag = '2020'
+        #     box, teu = 2, 2
+        # else:
+        #     container_tag = cntr_tag
+        #     box = 1
+        #     if '2' in container_tag: teu = 1
+        #     else: teu = 2
 
         data_ind = data.index
         df.loc[data_ind, "container_tag"] = container_tag
@@ -225,7 +250,7 @@ def get_queue_mark_and_estop(df=pd.DataFrame):
         df['estop boolean'] =  (df['distance_km'] - df['distance_km'].shift(1)).apply(lambda x: True if abs(x)>=(9/1000) else False)
         queue_data = cycle_data[cycle_data["speed"] <=0.1].copy(deep=True)
         queue_data["time_diff"] = (queue_data['local_time'] - queue_data['local_time'].shift(1)).apply(lambda x: x.total_seconds()).fillna(0).astype('int64')
-        queue_point = queue_data[queue_data["time_diff"] > 15]
+        queue_point = queue_data[queue_data["time_diff"] > 15] # 15 seconds
 
         if len(queue_data) > 0:
             if len(queue_point) == 0:
@@ -337,3 +362,89 @@ def location_clean(df=pd.DataFrame):
 
     return df
 
+def lmd_if_in_sl(location_section=str, x=float, y=float):
+    if location_section != 'None' and 'QC' not in location_section:
+        data_dict = get_TS_config()[str(location_section)]
+        if (data_dict['x_min']<= x <=data_dict['x_max']) and (data_dict['y_min']<= y <=data_dict['y_max']):
+            return True
+        else: return False
+    else: return False
+
+def lmd_ckps(location_section, target_location, SL, task_stage, x, y):
+    '''
+    Lambda function to encode checkpoint for each location point,
+        1-2: heading to YARD and not in service lane # XRAY
+        2-3: heading to YARD and not in service lane, along with cut-in behaviour
+        3-4: in YARD service lane
+        4-5: heading to QC but still in YARD area, along with cut-out behaviour
+        5-6: heading to QC and outside YARD area
+        6-7: heading to QC and in left corridor
+        7-8: turning to quay
+        8-9: in QC area, RTG Operation
+        9-1: heading to YARD but still in QC area
+    
+    Parameters:
+    location_section (str): for configuration
+    target_location (str) : to get heading direction (YARD/QC)
+    SL (boolean)          
+    current_task (str)    
+    x (float64)
+    y (float64)
+
+    Returns:
+    ckp_demo (str)
+    '''
+    try:
+        data_dict = get_TS_config()[str(location_section)]
+    except Exception as e:
+        print(f"An error occurred when getting TS map config: {e}")
+        pass
+    else:
+        corridor = get_TS_config()['CR']
+        if SL == True and location_section!='QC':
+            # in Yard Service lane
+            return '3->4'
+        else:
+            # not in service lane
+            if location_section=='QC':
+                if 'QCTP' in target_location:
+                    if task_stage!='Navigation': 
+                        return '8->9'
+                    else:
+                        return '7->8'
+                else:
+                     return '9->1'
+            elif location_section != 'QC':
+                if 'QCTP' in target_location:
+                    if x < data_dict['x_max']: return '4->5'
+                    elif y > corridor['y_min']: return '6->7'
+                    else: return '5->6'
+                else:
+                    if y < data_dict['y_max'] and x > data_dict['x_min']: 
+                        return '2->3'
+                    else: 
+                        return '1->2'
+
+# def correct_labels(df, label_column='checkpoint', cycle_tag_column='Cycle Tag'):
+#     def correct_group_labels(group):
+#         # Iterate through the group
+#         for i in range(1, len(group) - 1):
+#             current_label = group.iloc[i][label_column]
+#             previous_label = group.iloc[i - 1][label_column]
+#             next_label = group.iloc[i + 1][label_column]
+            
+#             # Check for the specific condition
+#             if (current_label != previous_label) and (current_label != next_label) and (previous_label == next_label):
+#                 # Define a range to check forward
+#                 j = i
+#                 while j < len(group) and group.iloc[j][label_column] == current_label:
+#                     j += 1
+#                 if j < len(group) and group.iloc[j][label_column] == previous_label:
+#                     # Correct the labels
+#                     group.loc[group.index[i:j], label_column] = previous_label
+#         return group
+    
+#     # Group by the cycle tag column and apply the correction function to each group
+#     corrected_df = df.groupby(cycle_tag_column).apply(correct_group_labels).reset_index(drop=True)
+    
+#     return corrected_df

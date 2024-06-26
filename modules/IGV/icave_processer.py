@@ -22,8 +22,7 @@ def adhoc_process(df=pd.DataFrame) -> pd.DataFrame:
     df['location_ref'] = df['location_ref'].ffill()
 
     # location block
-    df['location_block'] = df['target_location'].apply(lambda x: lmd_get_location_block(x))
-    # df = correct_block(df=df)
+    df['location_block'] = df.apply(lambda x: lmd_get_location_block(x['target_location'], x['task_stage']), axis=1)
 
     # mission type
     df['mission_type'] = df.apply(lambda x: lmd_get_mission_type(x['current_task_tag'], x['location_ref']), axis=1)
@@ -42,6 +41,20 @@ def correct_block(df=pd.DataFrame):
     Returns:
     df (pd.Dataframe): dataframe with correct block info
     '''
+    # df = df.sort_values(by=['vehicle_id', 'Cycle Tag','local_time']).reset_index(drop=True)
+
+    # for cycle, data in df.groupby('Cycle Tag'):
+    #     try:
+    #         ind = data.index.tolist()
+    #         val = data['location_block'].value_counts().index.tolist()
+    #         print(val)
+    #         df['location_block'].iloc[ind] = df['location_block'].fillna(val[0])
+    #     except IndexError:
+    #         val = 'D'
+    #         data.loc[data['location_block']!=val, 'location_block'] = val
+    
+    # return df
+
     exp_li = []
     if 'Cycle Tag' in df.columns:
         df = df.sort_values(by=['vehicle_id', 'Cycle Tag','local_time']).reset_index(drop=True)
@@ -76,9 +89,9 @@ def lmd_get_location_ref(target_location=str) -> str:
     elif 'ts' in target_location:       return 'TS'
     else: return np.NaN
 
-def lmd_get_location_block(target_location=str):
-    if 'D' in target_location: return 'D'
-    elif 'E' in target_location: return 'E'
+def lmd_get_location_block(target_location=str, task_stage=str):
+    if ('D' in target_location) & (task_stage=='Waiting for Operation' or task_stage=='Alignment'): return 'D'
+    elif ('E' in target_location) & (task_stage=='Waiting for Operation' or task_stage=='Alignment'): return 'E'
 
 def get_current_task_tag(df=pd.DataFrame):
     df['current_task_tag'] = df['mission_type'].apply(lambda x: 'LOAD' if x=='VSLD' else 'DSCH')

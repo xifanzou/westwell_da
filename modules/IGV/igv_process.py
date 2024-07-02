@@ -27,6 +27,16 @@ def run(project=str, df=pd.DataFrame):
         df = get_chassis_mode(df=df)
         df = icave_get_checkpoints.get(df=df)
 
+    if project == 'AQCT':
+        df = get_cycle(df=df)
+        print(f'after cycle encoding {df.shape}')
+        df = get_cycle_tag(df=df)
+        if 'Cycle Tag' in df.columns:
+            df = get_container_type(df=df)
+            df = get_power_usage(df=df)
+            df = get_kpis(df=df)
+            df = get_queue_mark_and_estop(df=df) 
+
     elif project == 'CK':
         df = df
 
@@ -43,11 +53,11 @@ def run(project=str, df=pd.DataFrame):
             df = get_kpis(df=df)
             df = get_queue_mark_and_estop(df=df)
             df = get_chassis_mode(df=df)
-        if project== 'TS':
-            df['SL'] = df.apply(lambda x: lmd_if_in_sl(x['location_section'], x['position_x'], x['position_y']), axis=1)
-            df['location_section'] = df.apply(lambda x: lmd_section_relabel(x['location_section'], x['position_x'], x['position_y']), axis=1)
-            df['checkpoint'] = df.apply(lambda x: lmd_ckps(x['location_section'], x['target_location'], x['SL'], x['task_stage'], x['position_x'], x['position_y']), axis=1)
-            # df = correct_labels(df=df)
+        # if project== 'TS':
+        #     df['SL'] = df.apply(lambda x: lmd_if_in_sl(x['location_section'], x['position_x'], x['position_y']), axis=1)
+        #     df['location_section'] = df.apply(lambda x: lmd_section_relabel(x['location_section'], x['position_x'], x['position_y']), axis=1)
+        #     df['checkpoint'] = df.apply(lambda x: lmd_ckps(x['location_section'], x['target_location'], x['SL'], x['task_stage'], x['position_x'], x['position_y']), axis=1)
+        #     df = correct_labels(df=df)
     return df
 
 def get_lon_lat(project=str, df=None):
@@ -187,17 +197,19 @@ def get_cycle(df=pd.DataFrame):
     df['cycle'] = df.index.map(cycle_dict)    
     df['cycle'] = df['cycle'].ffill().bfill()
     # df.drop(columns=['mission_type_change'], inplace=True)
+    df.drop_duplicates(inplace=True)
     df = df.reset_index(drop=True)
 
     return df
 
 def get_cycle_tag(df=pd.DataFrame):
     try:
-        cycle_tag_suffix = f"-{df['local_time'].iloc[1]}"
-        df['Cycle Tag'] = (df['vehicle_id'].astype(str) + '-' +
-                            # df['vesselVisitID'].astype(str) + 'C' +
-                            df['cycle'].astype(str) +
-                            cycle_tag_suffix)
+        for cycle, cycledata in df.groupby('cycle'):
+
+            cycle_tag_suffix = f"{cycledata['local_time'].iloc[1]}"
+            vehicle_id = cycledata['vehicle_id'].iloc[1]
+            df.loc[cycledata.index.to_list(), 'Cycle Tag'] = f'{vehicle_id}-C{cycle}-{cycle_tag_suffix}'
+
     except IndexError:
         print(f"This file passed inital filter check but doesn't have cycles, recommend data source check. Skip processing.")
         pass
@@ -224,15 +236,6 @@ def get_container_type(df=pd.DataFrame):
         else:
             container_tag = '2020'
             box, teu = 2, 2
-
-        # if n_mission>=2:
-        #     container_tag = '2020'
-        #     box, teu = 2, 2
-        # else:
-        #     container_tag = cntr_tag
-        #     box = 1
-        #     if '2' in container_tag: teu = 1
-        #     else: teu = 2
 
         data_ind = data.index
         df.loc[data_ind, "container_tag"] = container_tag

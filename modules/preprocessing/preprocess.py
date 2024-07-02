@@ -16,9 +16,7 @@ def run(project=str, data_src=str, df=pd.DataFrame, vessel_name=str) -> pd.DataF
     Returns:
     df (pd.DataFrame): DataFrame preprocessed and(/or) filtered based on project requirements.
     '''
-    # print(df.columns)
     stripped_df = __strip_str__(df=df)
-    # print(stripped_df.columns)
 
     # try:
     data_src = data_src.upper()
@@ -28,9 +26,7 @@ def run(project=str, data_src=str, df=pd.DataFrame, vessel_name=str) -> pd.DataF
         preprocessed = __task_filter__(df=stripped_df)
     elif data_src == 'IGV':
         project = project.upper()
-        # print(f'Before filter: {stripped_df.shape}')
         preprocessed = __igv_filter__(project=project, vessel_name=vessel_name, df=stripped_df)
-        # print(f'After filter {preprocessed.shape}')
 
     # except Exception as e:
     #     print("An error occurred:", e)
@@ -73,7 +69,7 @@ def __igv_filter__(project=str, vessel_name=None, df=pd.DataFrame):
         df = df[df['vesselVisitID'].isin(val_to_drop)==False]
 
     # Current task
-    if project.upper() in ['DL', 'TS', 'YH', 'TPY']:
+    if project.upper() in ['DL', 'TS', 'YH', 'TPY', 'AQCT']:
         status = ['DSCH', 'LOAD', 'YARDMOVE', 'MANUALMOVE']
         df = df[df['current_task'].isin(status)]
     elif project.upper() in ['TJ', 'WH']:
@@ -88,8 +84,13 @@ def __igv_filter__(project=str, vessel_name=None, df=pd.DataFrame):
                         'vesselVisitID', 'mission_type', 'missionID',
                         'container1_type', 'container2_type',]
         df = df.drop(_useless_col, axis=1)
-    if project in ['ICA']:
+
+    elif project in ['ICA']:
         df = __igv_ica_filter__(df=df)
+
+    elif project in ['AQCT']:
+        df = __igv_aqct_preprocessor__(df=df)
+    
 
     # print(project, df)
     return df.reset_index(drop=True)
@@ -120,6 +121,27 @@ def  __igv_ica_filter__(df=pd.DataFrame):
     # print(f'After transform {df.target_location.value_counts()}')
     
     return df
+
+def __igv_aqct_preprocessor__(df=pd.DataFrame):
+    '''Revise when mission_type data lost is fixed'''
+    # filter on target_location
+    df = df[
+        (df['target_location'].apply(lambda x: len(x) > 5)) &
+        (df['target_location'].str.contains('Charge')==False)
+        ]
+    # datetime format
+    df['local_time'] = pd.to_datetime(df['local_time'], format='%Y-%m-%d %H:%M:%S')
+
+    # get location_tag
+    df['location_tag'] = df['target_location'].str.split('.', expand=True)[0]
+    df['location_tag'] = df['location_tag'].apply(lambda x: 'YARD' if x=='YLTP' else 'QCTP')
+    df['location_ref'] = df['location_tag']
+
+    # get mission_type
+    df['mission_type'] = df.apply(lambda x: lmd_get_mission_type_AQCT(x['current_task_tag'], x['location_tag']), axis=1)
+    df['mission_type'].ffill()
+    
+    return df.reset_index(drop=True)
 
 def __error_filter__(df=pd.DataFrame):
     """
@@ -189,3 +211,12 @@ def __strip_str__(df=pd.DataFrame):
 
     return df
 
+def lmd_get_mission_type_AQCT(current_task_tag=str, location_tag=str) :
+    '''AQCT Project specific to delete'''
+    if current_task_tag=='LOAD':
+        if (location_tag=='YARD'):    return 'RECEIVE'
+        elif (location_tag=='QCTP') | (location_tag=='TS') :  return 'DELIVER'
+    elif current_task_tag=='DSCH':
+        if (location_tag=='YARD') | (location_tag=='TS') :    return 'DELIVER'
+        elif (location_tag=='QCTP'):  return 'RECEIVE'
+    else: return

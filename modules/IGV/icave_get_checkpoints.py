@@ -91,7 +91,7 @@ def lmd_ckps(location_section, target_location, SL, current_task, mission_type_o
     try:
         data_dict = get_ica_config()[str(location_section)]
     except Exception as e:
-        print(f"An error occurred when getting ica map config: {e}")
+        # print(f"An error occurred when getting ica map config: {e}")
         pass
     else:
         corridor = get_ica_config()['CR']
@@ -132,5 +132,8 @@ def lmd_path(location_block, x, ckp):
 
     if location_block=='D' and (ckp=='5->6'):
         if right_corr['x_min']<=x<=right_corr['x_max']: return True
+        else: return False
     if location_block=='E' and ckp=='1->2':
         if left_corr['x_min']<=x<=left_corr['x_max']: return True
+        else: return False
+    else: return False

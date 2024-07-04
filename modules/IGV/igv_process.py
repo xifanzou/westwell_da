@@ -27,7 +27,7 @@ def run(project=str, df=pd.DataFrame):
         df = get_chassis_mode(df=df)
         df = icave_get_checkpoints.get(df=df)
 
-    if project == 'AQCT':
+    elif project == 'AQCT':
         df = get_cycle(df=df)
         print(f'after cycle encoding {df.shape}')
         df = get_cycle_tag(df=df)
@@ -221,15 +221,19 @@ def get_container_type(df=pd.DataFrame):
 
     for cycle, data in df.groupby('Cycle Tag'):
         data['container_tag'] = data['container1_type'].astype(str) + data['container2_type'].astype(str)
+        data['task_stage'] = data['task_stage'].str.upper()
 
         rtg_ind = data[
-            ((data['task_stage']=='Waiting for Operation') | (data['task_stage']=='Alignment')) & 
+            ((data['task_stage'].str.contains('OPERATION')) | (data['task_stage'].str.contains('ALIGNMENT'))) & 
             (data['location_ref'].str.contains('YARD', na=False))
             ].index.to_list()
+        # print(f'rtg ind: {rtg_ind}')
         
         rtg_data = data[data.index.isin(rtg_ind)]
         # n_mission= len(rtg_data['missionID'].value_counts().index.tolist())
         cntr_tag = rtg_data['container_tag'].value_counts().index.tolist()
+        print(cntr_tag)
+
         if len(cntr_tag)==1: 
             container_tag = '400'
             box, teu = 1, 2

@@ -126,7 +126,7 @@ def __igv_aqct_preprocessor__(df=pd.DataFrame):
     '''Revise when mission_type data lost is fixed'''
     # filter on target_location
     df = df[
-        (df['target_location'].apply(lambda x: len(x) > 5)) &
+        (df['target_location'].apply(lambda x: (len(x) > 5) | (len(x)==1))) &
         (df['target_location'].str.contains('Charge')==False)
         ]
     # datetime format
